@@ -1,0 +1,3 @@
+asyncpg → Asynchronous PostgreSQL driver
+SQLAlchemy → ORM for database models
+Alembic → For database migrations
