@@ -13,6 +13,9 @@ python-dotenv = "^1.0.1"
 asyncpg = "^0.30.0"
 sqlalchemy = "^2.0.38"
 alembic = "^1.14.1"
+coloredlogs = "^15.0.1"
+rich = "^13.9.4"
+psycopg2-binary = "^2.9.10"
 
 
 [build-system]

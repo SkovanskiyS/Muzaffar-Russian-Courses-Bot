@@ -1,0 +1,123 @@
+{
+    "welcome_message": "🎉 Bizning ta'lim platformamizga xush kelibsiz! Yangi bilimlarga tayyormisiz? 🚀",
+    "registration_success": "🎉 Ajoyib! Ro'yxatdan muvaffaqiyatli o'tdingiz! 😊",
+    "welcome_back": "👋 Salom yana! Seni yana ko'rishdan xursandmiz! 🔥",
+    
+    "course_type": {
+        "russian_language": "📚 Rus tili",
+        "description": "Rus tilini oson va zavq bilan o'rganing! 🎓",
+        "add": "📚 Kurs turini qo'shish",
+        "name": "Kurs turi nomi",
+        "created_success": "'{name}' kurs turi muvaffaqiyatli yaratildi!",
+        "select": "Kurs turini tanlang:",
+        "no_types": "Mavjud kurs turlari yo'q. Iltimos, avval kurs turini yarating."
+    },
+
+    "course": {
+        "title": "📖 Kurs nomi",
+        "description": "ℹ️ Kurs haqida ma'lumot",
+        "text_explanation": "📝 Matnli tushuntirish",
+        "poll_question": "🤔 Savol",
+        "poll_options": "✅ Javob variantlari",
+        "add": "➕ Kurs qo'shish",
+        "add_title": "Kurs nomini yuboring:",
+        "add_description": "Kurs tavsifini yuboring:",
+        "add_banner": "Kurs bannerini yuboring:",
+        "add_video": "Kurs videosini yuboring:",
+        "add_voice": "Ovozli tushuntirishni yuboring:",
+        "add_text": "Matnli tushuntirishni yuboring:",
+        "add_practice_images": "📸 Amaliy mashqlar uchun 1-5 ta rasm yuboring (bittadan). Tugatganingizda, Tayyor tugmasini bosing.",
+        "practice_images": "📸 Amaliy mashqlar",
+        "practice_image": "📸 Amaliy mashq",
+        "practice_image_added": "✅ Amaliy mashq #{number} qo'shildi! Yana bir dona yuboring yoki Tayyor tugmasini bosing.",
+        "practice_send_or_finish": "Amaliy mashqlar uchun rasmlarni yuboring yoki tugatganingizda Tayyor tugmasini bosing.",
+        "practice_finish_button": "✅ Rasmlar bilan tayyor",
+        "no_practice_images": "Amaliy mashqlar mavjud emas",
+        "back_to_content": "🔙 Kursga qaytish",
+        "select_difficulty": "Qiyinchilik darajasini tanlang:",
+        "enter_order": "Tartib raqamini kiriting (1-40):",
+        "invalid_order": "Iltimos, 1 dan 40 gacha bo'lgan raqam kiriting",
+        "created_success": "'{title}' kursi muvaffaqiyatli yaratildi!",
+        "creation_cancelled": "Kurs yaratish bekor qilindi.",
+        "change_difficulty": "📊 Qiyinchilik darajasini o'zgartirish",
+        "change_order": "📝 Tartib raqamini o'zgartirish",
+        "order": "Tartib raqami",
+        "difficulty": "Qiyinchilik darajasi",
+        "difficulty": {
+            "beginner": "📊 Boshlang'ich",
+            "intermediate": "📊 O'rta",
+            "advanced": "📊 Yuqori",
+            "expert": "📊 Ekspert",
+            "all": "📚 Barcha darajalar"
+        },
+        "available": "Mavjud kurslar:",
+        "no_available": "Bu tanlash uchun kurslar mavjud emas.",
+        "watch_video": "🎥 Videoni ko'rish",
+        "listen_voice": "🎧 Tushuntirishni tinglash",
+        "text_content": "📝 Matnli tushuntirish",
+        "back_to_list": "🔙 Kurslar ro'yxatiga qaytish",
+        "not_found": "Kurs topilmadi."
+    },
+
+    "buttons": {
+        "next": "👉 Keyingisi",
+        "back": "⬅️ Orqaga",
+        "cancel": "❌ Bekor qilish", 
+        "confirm": "✅ Tasdiqlash",
+        "courses": "📚 Mavjud kurslar",
+        "contact_teacher": "👨‍🏫 O'qituvchi bilan bog'lanish",
+        "about_us": "ℹ️ Biz haqimizda",
+        "settings": "⚙️ Sozlamalar",
+        "back_to_types": "🔙 Kurs turlariga qaytish",
+        "back_to_menu": "🔙 Menyuga qaytish"
+    },
+
+    "admin": {
+        "welcome": "👑 Salom, Admin! Seni ko'rishdan xursandmiz! 🔥",
+        "course_management": "📋 Kurslarni boshqarish",
+        "add_course": "➕ Kurs qo'shish",
+        "edit_course": "✏️ Kursni tahrirlash",
+        "delete_course": "🗑 Kursni o'chirish"
+    },
+
+    "user": {
+        "profile": "👤 Profil",
+        "settings": "⚙️ Sozlamalar",
+        "my_courses": "📚 Mening kurslarim",
+        "language": "🌍 Til"
+    },
+
+    "courses": {
+        "list_title": "📜 Mavjud kurslar",
+        "no_courses": "😔 Hozircha mavjud kurslar yo'q",
+        "course_info": "ℹ️ Kurs haqida ma'lumot:",
+        "type": "📝 Kurs turi",
+        "description": "📄 Tavsif",
+        "price": "💰 Narx",
+        "duration": "⏳ Davomiyligi",
+        "start_date": "📅 Boshlanish sanasi"
+    },
+
+    "contact": {
+        "teacher_info": "👨‍🏫 O'qituvchi haqida ma'lumot:",
+        "contact_message": "📩 O'qituvchi bilan bog'lanish:",
+        "no_teacher": "🚫 Hozircha o'qituvchi mavjud emas"
+    },
+
+    "about": {
+        "title": "ℹ️ Biz haqimizda",
+        "description": "📚 Rus tilini qulay va oson o'rganishingizga yordam beramiz!"
+    },
+
+    "settings": {
+        "title": "⚙️ Sozlamalar",
+        "language": "🌍 Tilni tanlang",
+        "language_changed": "✅ Til muvaffaqiyatli o'zgartirildi!"
+    },
+
+    "errors": {
+        "not_found": "🚫 Topilmadi!",
+        "access_denied": "❌ Ruxsat yo'q!",
+        "invalid_input": "⚠️ Xatolik! Kiritilgan ma'lumotlarni tekshiring."
+    }
+}
