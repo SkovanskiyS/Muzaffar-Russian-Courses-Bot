@@ -100,7 +100,7 @@ async def show_course_details(callback: types.CallbackQuery, session: AsyncSessi
     difficulty_text = get_text(f"course.difficulty.{course.difficulty_level.name.lower()}", i18n_language)
     content_message = (
         f"{get_text('course.title', i18n_language)}: {course.title}\n"
-        f"{get_text('course.difficulty', i18n_language)}: {difficulty_text}\n"
+        f"{get_text('course.difficulty_title', i18n_language)}: {difficulty_text}\n"
         f"{get_text('course.order', i18n_language)}: {course.order_index}\n\n"
         f"{get_text('course.description', i18n_language)}: {course.description}\n\n"
         f"{get_text('course.text_explanation', i18n_language)}:\n{course.text_explanation}"
@@ -179,7 +179,7 @@ async def back_to_courses(callback: types.CallbackQuery, session: AsyncSession, 
     courses = await get_courses_by_type_and_difficulty(session, course_type_id, difficulty_level)
     
     if not courses:
-        await callback.message.edit_text(
+        await callback.message.answer(
             get_text("course.no_available", i18n_language),
             reply_markup=types.InlineKeyboardMarkup(
                 inline_keyboard=[[
@@ -193,7 +193,8 @@ async def back_to_courses(callback: types.CallbackQuery, session: AsyncSession, 
         return
     
     keyboard = get_course_list_keyboard(courses, i18n_language, course_type_id)
-    await callback.message.edit_text(get_text("course.available", i18n_language), reply_markup=keyboard)
+    await callback.message.delete()
+    await callback.message.answer(get_text("course.available", i18n_language), reply_markup=keyboard)
 
 @router.callback_query(F.data.startswith("practice_"))
 async def show_practice_image(callback: types.CallbackQuery, session: AsyncSession, i18n_language=None):

@@ -84,6 +84,20 @@ async def get_courses_by_type_and_difficulty(
     result = await db.execute(query)
     return result.scalars().all()
 
+async def get_courses_by_type(
+    db: AsyncSession,
+    course_type_id: int
+) -> List[Course]:
+    query = select(Course).filter(
+        and_(
+            Course.course_type_id == course_type_id,
+            Course.is_active == True
+        )
+    ).order_by(Course.order_index)
+    
+    result = await db.execute(query)
+    return result.scalars().all()
+
 async def update_course(
     db: AsyncSession,
     course_id: int,

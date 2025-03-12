@@ -5,6 +5,7 @@ from aiogram.fsm.state import State, StatesGroup
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from aiogram.types import ReplyKeyboardRemove
+from database.models.courses import Course
 import json
 
 
@@ -12,6 +13,7 @@ from database.crud.courses import (
     create_course_type,
     create_course,
     get_course_type,
+    get_courses_by_type,
     update_course,
     delete_course
 )
@@ -43,6 +45,19 @@ class CourseCreation(StatesGroup):
     waiting_for_practice_images = State()
     waiting_for_difficulty = State()
     waiting_for_order = State()
+
+class CourseManagement(StatesGroup):
+    waiting_for_type = State()
+    waiting_for_course = State()
+    waiting_for_new_title = State()
+    waiting_for_new_description = State()
+    waiting_for_new_banner = State()
+    waiting_for_new_video = State()
+    waiting_for_new_voice = State()
+    waiting_for_new_text = State()
+    waiting_for_new_difficulty = State()
+    waiting_for_new_order = State()
+    confirm_delete = State()
 
 @router.message(F.text.in_(get_all_translations_for_key("course_type.add")))
 async def cmd_add_course_type(message: types.Message, state: FSMContext, session: AsyncSession, i18n_language=None):
@@ -239,8 +254,6 @@ async def process_order(message: types.Message, state: FSMContext, session: Asyn
         
     try:
         order_index = int(message.text)
-        if not 1 <= order_index <= 40:
-            raise ValueError
     except ValueError:
         await message.answer(get_text("course.invalid_order", i18n_language), reply_markup=get_cancel_keyboard(i18n_language))
         return
@@ -287,4 +300,1037 @@ async def cancel_course_creation(callback: types.CallbackQuery, state: FSMContex
     await callback.message.answer(
         get_text("course.creation_cancelled", i18n_language), 
         reply_markup=get_admin_main_keyboard(i18n_language)
-    ) 
+    )
+
+@router.message(F.text.in_(get_all_translations_for_key("admin.course_management")))
+async def cmd_course_management(message: types.Message, state: FSMContext, session: AsyncSession, i18n_language=None):
+    """Handler for course management - show course types first"""
+    query = select(CourseType).filter(CourseType.is_active == True)
+    result = await session.execute(query)
+    course_types = result.scalars().all()
+    
+    if not course_types:
+        await message.answer(
+            get_text("course_type.no_types", i18n_language),
+            reply_markup=get_admin_main_keyboard(i18n_language)
+        )
+        return
+    
+    # Create a keyboard with course types
+    keyboard = []
+    for course_type in course_types:
+        keyboard.append([
+            types.InlineKeyboardButton(
+                text=f"📚 {course_type.name}",
+                callback_data=f"manage_course_type_{course_type.id}"
+            )
+        ])
+    
+    keyboard.append([
+        types.InlineKeyboardButton(
+            text=get_text("buttons.back_to_menu", i18n_language),
+            callback_data="back_to_admin_menu"
+        )
+    ])
+    
+    await message.answer(
+        get_text("admin.select_course_type", i18n_language),
+        reply_markup=types.InlineKeyboardMarkup(inline_keyboard=keyboard)
+    )
+    await state.set_state(CourseManagement.waiting_for_type) 
+
+@router.callback_query(F.data.startswith("manage_course_type_"))
+async def process_manage_course_type(callback: types.CallbackQuery, state: FSMContext, session: AsyncSession, i18n_language=None):
+    """Show difficulty levels for selected course type"""
+    course_type_id = int(callback.data.split("_")[-1])
+    
+    # Store the course type ID for later use
+    await state.update_data(course_type_id=course_type_id)
+    
+    # Get the course type
+    course_type = await get_course_type(session, course_type_id)
+    if not course_type:
+        await callback.message.edit_text(
+            get_text("course_type.not_found", i18n_language),
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.back_to_menu", i18n_language),
+                    callback_data="back_to_admin_menu"
+                )
+            ]])
+        )
+        return
+    
+    # Create a keyboard with difficulty levels
+    keyboard = []
+    
+    # Add a button for each difficulty level
+    for level in DifficultyLevel:
+        difficulty_text = get_text(f"course.difficulty.{level.name.lower()}", i18n_language)
+        keyboard.append([
+            types.InlineKeyboardButton(
+                text=difficulty_text,
+                callback_data=f"manage_course_difficulty_{course_type_id}_{level.name}"
+            )
+        ])
+    
+    # Add an "All levels" option
+    keyboard.append([
+        types.InlineKeyboardButton(
+            text=get_text("course.difficulty.all", i18n_language),
+            callback_data=f"manage_course_difficulty_{course_type_id}_ALL"
+        )
+    ])
+    
+    # Add back button
+    keyboard.append([
+        types.InlineKeyboardButton(
+            text=get_text("buttons.back", i18n_language),
+            callback_data="back_to_course_types_management"
+        )
+    ])
+    
+    await callback.message.edit_text(
+        get_text("course.select_difficulty", i18n_language),
+        reply_markup=types.InlineKeyboardMarkup(inline_keyboard=keyboard)
+    )
+    await state.set_state(CourseManagement.waiting_for_type)
+
+@router.callback_query(F.data.startswith("manage_course_difficulty_"))
+async def process_manage_course_difficulty(callback: types.CallbackQuery, state: FSMContext, session: AsyncSession, i18n_language=None):
+    """Show courses for selected type and difficulty"""
+    parts = callback.data.split("_")
+    course_type_id = int(parts[3])
+    difficulty = parts[4]
+    
+    # Store the course type ID for later use
+    await state.update_data(course_type_id=course_type_id)
+    await state.update_data(selected_difficulty=difficulty)
+    
+    # Get the course type
+    course_type = await get_course_type(session, course_type_id)
+    if not course_type:
+        await callback.message.edit_text(
+            get_text("course_type.not_found", i18n_language),
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.back_to_menu", i18n_language),
+                    callback_data="back_to_admin_menu"
+                )
+            ]])
+        )
+        return
+    
+    # Get courses for this type and difficulty
+    query = select(Course).filter(Course.course_type_id == course_type_id, Course.is_active == True)
+    
+    # Filter by difficulty if not "ALL"
+    if difficulty != "ALL":
+        query = query.filter(Course.difficulty_level == DifficultyLevel[difficulty])
+    
+    # Order by order_index
+    query = query.order_by(Course.order_index)
+    
+    result = await session.execute(query)
+    courses = result.scalars().all()
+    
+    if not courses:
+        await callback.message.edit_text(
+            get_text("course.no_courses_to_manage", i18n_language),
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.back", i18n_language),
+                    callback_data=f"manage_course_type_{course_type_id}"
+                )
+            ]])
+        )
+        return
+    
+    # Create a keyboard with courses
+    keyboard = []
+    for course in courses:
+        difficulty_text = get_text(f"course.difficulty.{course.difficulty_level.name.lower()}", i18n_language)
+        keyboard.append([
+            types.InlineKeyboardButton(
+                text=f"{course.title} ({difficulty_text}, #{course.order_index})",
+                callback_data=f"manage_course_{course.id}"
+            )
+        ])
+    
+    keyboard.append([
+        types.InlineKeyboardButton(
+            text=get_text("buttons.back", i18n_language),
+            callback_data=f"manage_course_type_{course_type_id}"
+        )
+    ])
+    
+    # Get the title for the message based on difficulty
+    if difficulty == "ALL":
+        title = get_text("admin.select_course", i18n_language)
+    else:
+        difficulty_text = get_text(f"course.difficulty.{difficulty.lower()}", i18n_language)
+        title = get_text("admin.select_course_with_difficulty", i18n_language).format(
+            difficulty=difficulty_text
+        )
+    
+    await callback.message.edit_text(
+        title,
+        reply_markup=types.InlineKeyboardMarkup(inline_keyboard=keyboard)
+    )
+    await state.set_state(CourseManagement.waiting_for_course)
+
+@router.callback_query(F.data.startswith("manage_course_"))
+async def process_manage_course(callback: types.CallbackQuery, state: FSMContext, session: AsyncSession, i18n_language=None):
+    """Show management options for selected course"""
+    course_id = int(callback.data.split("_")[-1])
+    
+    # Store the course ID for later use
+    await state.update_data(course_id=course_id)
+    
+    # Reset state to waiting_for_course to ensure consistency
+    await state.set_state(CourseManagement.waiting_for_course)
+    
+    # Get the course
+    query = select(Course).filter(Course.id == course_id)
+    result = await session.execute(query)
+    course = result.scalar_one_or_none()
+    
+    if not course:
+        await callback.message.edit_text(
+            get_text("course.not_found", i18n_language),
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.back", i18n_language),
+                    callback_data="back_to_course_management"
+                )
+            ]])
+        )
+        return
+    
+    # Send course info
+    difficulty_text = get_text(f"course.difficulty.{course.difficulty_level.name.lower()}", i18n_language)
+    print(difficulty_text)
+    course_info = (
+        f"{get_text('course.title', i18n_language)}: {course.title}\n"
+        f"📊 {get_text('course.difficulty_title', i18n_language)}: {difficulty_text}\n"
+        f"🔢 {get_text('course.order', i18n_language)}: {course.order_index}\n\n"
+        f"{get_text('course.description', i18n_language)}:\n{course.description}\n\n"
+        f"{get_text('course.text_explanation', i18n_language)}:\n{course.text_explanation[:200]}..."
+    )
+    
+    if course.banner_file_id:
+        await callback.message.answer_photo(
+            photo=course.banner_file_id,
+            caption=course_info
+        )
+    else:
+        await callback.message.edit_text(course_info)
+    
+    # Show management options
+    keyboard = get_course_management_keyboard(course_id, i18n_language)
+    await callback.message.answer(
+        get_text("admin.course_management_options", i18n_language),
+        reply_markup=keyboard
+    )
+
+@router.callback_query(F.data.startswith("edit_course_"))
+async def edit_course_menu(callback: types.CallbackQuery, state: FSMContext, i18n_language=None):
+    """Show edit options for the course"""
+    course_id = int(callback.data.split("_")[-1])
+    await state.update_data(course_id=course_id)
+    
+    # Reset the state to waiting_for_course to ensure back button works after cancellation
+    await state.set_state(CourseManagement.waiting_for_course)
+    
+    keyboard = [
+        [
+            types.InlineKeyboardButton(
+                text=get_text("course.edit_title", i18n_language),
+                callback_data=f"edit_title_{course_id}"
+            ),
+            types.InlineKeyboardButton(
+                text=get_text("course.edit_description", i18n_language),
+                callback_data=f"edit_description_{course_id}"
+            )
+        ],
+        [
+            types.InlineKeyboardButton(
+                text=get_text("course.edit_banner", i18n_language),
+                callback_data=f"edit_banner_{course_id}"
+            ),
+            types.InlineKeyboardButton(
+                text=get_text("course.edit_video", i18n_language),
+                callback_data=f"edit_video_{course_id}"
+            )
+        ],
+        [
+            types.InlineKeyboardButton(
+                text=get_text("course.edit_voice", i18n_language),
+                callback_data=f"edit_voice_{course_id}"
+            ),
+            types.InlineKeyboardButton(
+                text=get_text("course.edit_text", i18n_language),
+                callback_data=f"edit_text_{course_id}"
+            )
+        ],
+        [
+            types.InlineKeyboardButton(
+                text=get_text("buttons.back", i18n_language),
+                callback_data=f"manage_course_{course_id}"
+            )
+        ]
+    ]
+    
+    await callback.message.edit_text(
+        get_text("admin.select_what_to_edit", i18n_language),
+        reply_markup=types.InlineKeyboardMarkup(inline_keyboard=keyboard)
+    )
+
+@router.callback_query(F.data.startswith("delete_course_"))
+async def delete_course_confirmation(callback: types.CallbackQuery, state: FSMContext, i18n_language=None):
+    """Ask for confirmation before deleting a course"""
+    course_id = int(callback.data.split("_")[-1])
+    await state.update_data(course_id=course_id)
+    
+    keyboard = [
+        [
+            types.InlineKeyboardButton(
+                text=get_text("buttons.confirm", i18n_language),
+                callback_data=f"confirm_delete_{course_id}"
+            ),
+            types.InlineKeyboardButton(
+                text=get_text("buttons.cancel", i18n_language),
+                callback_data=f"manage_course_{course_id}"
+            )
+        ]
+    ]
+    
+    await callback.message.edit_text(
+        get_text("admin.confirm_delete_course", i18n_language),
+        reply_markup=types.InlineKeyboardMarkup(inline_keyboard=keyboard)
+    )
+    await state.set_state(CourseManagement.confirm_delete)
+
+@router.callback_query(CourseManagement.confirm_delete, F.data.startswith("confirm_delete_"))
+async def confirm_delete_course(callback: types.CallbackQuery, state: FSMContext, session: AsyncSession, i18n_language=None):
+    """Handle course deletion confirmation"""
+    course_id = int(callback.data.split("_")[-1])
+    
+    # Get course data for messages
+    query = select(Course).filter(Course.id == course_id)
+    result = await session.execute(query)
+    course = result.scalar_one_or_none()
+    
+    if not course:
+        await callback.message.edit_text(
+            get_text("course.not_found", i18n_language),
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.back_to_menu", i18n_language),
+                    callback_data="back_to_admin_menu"
+                )
+            ]])
+        )
+        return
+    
+    course_title = course.title
+    
+    # Delete the course
+    success = await delete_course(session, course_id)
+    
+    if success:
+        await callback.message.edit_text(
+            get_text("admin.course_deleted", i18n_language).format(title=course_title),
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.back_to_menu", i18n_language),
+                    callback_data="back_to_admin_menu"
+                )
+            ]])
+        )
+    else:
+        await callback.message.edit_text(
+            get_text("admin.delete_failed", i18n_language).format(title=course_title),
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.back", i18n_language),
+                    callback_data=f"manage_course_{course_id}"
+                )
+            ]])
+        )
+    
+    await state.clear()
+
+@router.callback_query(F.data.startswith("change_difficulty_"))
+async def change_difficulty(callback: types.CallbackQuery, state: FSMContext, i18n_language=None):
+    """Show difficulty selection for changing course difficulty"""
+    course_id = int(callback.data.split("_")[-1])
+    await state.update_data(course_id=course_id)
+    
+    # Reset the state to waiting_for_course to ensure back button works after cancellation
+    await state.set_state(CourseManagement.waiting_for_course)
+    
+    keyboard = []
+    difficulty_texts = {
+        DifficultyLevel.BEGINNER: get_text("course.difficulty.beginner", i18n_language),
+        DifficultyLevel.INTERMEDIATE: get_text("course.difficulty.intermediate", i18n_language),
+        DifficultyLevel.ADVANCED: get_text("course.difficulty.advanced", i18n_language),
+        DifficultyLevel.EXPERT: get_text("course.difficulty.expert", i18n_language)
+    }
+    
+    for level in DifficultyLevel:
+        keyboard.append([
+            types.InlineKeyboardButton(
+                text=difficulty_texts[level],
+                callback_data=f"set_difficulty_{course_id}_{level.name}"
+            )
+        ])
+    
+    keyboard.append([
+        types.InlineKeyboardButton(
+            text=get_text("buttons.back", i18n_language),
+            callback_data=f"manage_course_{course_id}"
+        )
+    ])
+    
+    await callback.message.edit_text(
+        get_text("admin.select_new_difficulty", i18n_language),
+        reply_markup=types.InlineKeyboardMarkup(inline_keyboard=keyboard)
+    )
+    await state.set_state(CourseManagement.waiting_for_new_difficulty)
+
+@router.callback_query(CourseManagement.waiting_for_new_difficulty, F.data.startswith("set_difficulty_"))
+async def set_difficulty(callback: types.CallbackQuery, state: FSMContext, session: AsyncSession, i18n_language=None):
+    """Update course difficulty"""
+    parts = callback.data.split("_")
+    course_id = int(parts[2])
+    difficulty = DifficultyLevel[parts[3]]
+    
+    # Get course before update for message
+    query = select(Course).filter(Course.id == course_id)
+    result = await session.execute(query)
+    course = result.scalar_one_or_none()
+    course_title = course.title if course else ""
+    
+    # Update the course
+    updated_course = await update_course(
+        session,
+        course_id,
+        difficulty_level=difficulty
+    )
+    
+    # Reset the state to waiting_for_course to ensure back button works after update
+    await state.set_state(CourseManagement.waiting_for_course)
+    
+    if updated_course:
+        difficulty_text = get_text(f"course.difficulty.{difficulty.name.lower()}", i18n_language)
+        await callback.message.edit_text(
+            get_text("admin.difficulty_updated", i18n_language).format(
+                title=course_title,
+                difficulty=difficulty_text
+            ),
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.back", i18n_language),
+                    callback_data=f"manage_course_{course_id}"
+                )
+            ]])
+        )
+    else:
+        await callback.message.edit_text(
+            get_text("admin.update_failed", i18n_language).format(title=course_title),
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.back", i18n_language),
+                    callback_data=f"manage_course_{course_id}"
+                )
+            ]])
+        )
+
+@router.callback_query(F.data.startswith("change_order_"))
+async def change_order(callback: types.CallbackQuery, state: FSMContext, i18n_language=None):
+    """Prompt for a new order index"""
+    course_id = int(callback.data.split("_")[-1])
+    await state.update_data(course_id=course_id)
+    
+    await callback.message.edit_text(
+        get_text("admin.enter_new_order", i18n_language),
+        reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+            types.InlineKeyboardButton(
+                text=get_text("buttons.cancel", i18n_language),
+                callback_data=f"manage_course_{course_id}"
+            )
+        ]])
+    )
+    await state.set_state(CourseManagement.waiting_for_new_order)
+
+@router.message(CourseManagement.waiting_for_new_order)
+async def process_new_order(message: types.Message, state: FSMContext, session: AsyncSession, i18n_language=None):
+    """Process new order index"""
+    try:
+        order_index = int(message.text)
+    except ValueError:
+        data = await state.get_data()
+        course_id = data.get("course_id")
+        await message.answer(
+            get_text("course.invalid_order", i18n_language),
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.try_again", i18n_language),
+                    callback_data=f"change_order_{course_id}"
+                ),
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.back", i18n_language),
+                    callback_data=f"manage_course_{course_id}"
+                )
+            ]])
+        )
+        return
+            
+    data = await state.get_data()
+    course_id = data.get("course_id")
+    
+    # Get course before update for message
+    query = select(Course).filter(Course.id == course_id)
+    result = await session.execute(query)
+    course = result.scalar_one_or_none()
+    course_title = course.title if course else ""
+    old_order = course.order_index if course else 0
+    
+    # Update the course
+    updated_course = await update_course(
+        session,
+        course_id,
+        order_index=order_index
+    )
+    
+    if updated_course:
+        await message.answer(
+            get_text("admin.order_updated", i18n_language).format(
+                title=course_title,
+                old_order=old_order,
+                new_order=order_index
+            ),
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.back", i18n_language),
+                    callback_data=f"manage_course_{course_id}"
+                )
+            ]])
+        )
+    else:
+        await message.answer(
+            get_text("admin.update_failed", i18n_language).format(title=course_title),
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.back", i18n_language),
+                    callback_data=f"manage_course_{course_id}"
+                )
+            ]])
+        )
+
+# Navigation handlers
+@router.callback_query(F.data == "back_to_admin_menu")
+async def back_to_admin_menu(callback: types.CallbackQuery, state: FSMContext, i18n_language=None):
+    """Return to admin menu"""
+    await state.clear()
+    await callback.message.edit_text(
+        get_text("admin.back_to_menu", i18n_language),
+    )
+    await callback.message.answer(
+        get_text("admin.welcome", i18n_language),
+        reply_markup=get_admin_main_keyboard(i18n_language)
+    )
+
+@router.callback_query(F.data == "back_to_course_types_management")
+async def back_to_course_types_management(callback: types.CallbackQuery, state: FSMContext, session: AsyncSession, i18n_language=None):
+    """Return to course types selection for management"""
+    await cmd_course_management(callback.message, state, session, i18n_language)
+
+@router.callback_query(F.data == "back_to_course_management")
+async def back_to_course_management(callback: types.CallbackQuery, state: FSMContext, session: AsyncSession, i18n_language=None):
+    """Return to course management"""
+    data = await state.get_data()
+    course_type_id = data.get("course_type_id")
+    selected_difficulty = data.get("selected_difficulty")
+    
+    if selected_difficulty:
+        # Go back to course list for selected type and difficulty
+        callback.data = f"manage_course_difficulty_{course_type_id}_{selected_difficulty}"
+        await process_manage_course_difficulty(callback, state, session, i18n_language)
+    else:
+        # Go back to course type selection
+        callback.data = f"manage_course_type_{course_type_id}"
+        await process_manage_course_type(callback, state, session, i18n_language)
+
+@router.callback_query(F.data == "cancel_course_management")
+async def cancel_course_management(callback: types.CallbackQuery, state: FSMContext, i18n_language=None):
+    """Cancel course management"""
+    await state.clear()
+    await callback.message.edit_text(
+        get_text("admin.management_cancelled", i18n_language),
+    )
+    await callback.message.answer(
+        get_text("admin.welcome", i18n_language),
+        reply_markup=get_admin_main_keyboard(i18n_language)
+    )
+
+@router.callback_query(F.data.startswith("edit_title_"))
+async def edit_title(callback: types.CallbackQuery, state: FSMContext, i18n_language=None):
+    """Prompt for new course title"""
+    course_id = int(callback.data.split("_")[-1])
+    await state.update_data(course_id=course_id)
+    
+    await callback.message.edit_text(
+        get_text("admin.enter_new_title", i18n_language),
+        reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+            types.InlineKeyboardButton(
+                text=get_text("buttons.cancel", i18n_language),
+                callback_data=f"edit_course_{course_id}"
+            )
+        ]])
+    )
+    await state.set_state(CourseManagement.waiting_for_new_title)
+
+@router.message(CourseManagement.waiting_for_new_title)
+async def process_new_title(message: types.Message, state: FSMContext, session: AsyncSession, i18n_language=None):
+    """Process new course title"""
+    if not message.text or len(message.text.strip()) < 3:
+        data = await state.get_data()
+        course_id = data.get("course_id")
+        await message.answer(
+            get_text("admin.title_too_short", i18n_language),
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.try_again", i18n_language),
+                    callback_data=f"edit_title_{course_id}"
+                ),
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.back", i18n_language),
+                    callback_data=f"edit_course_{course_id}"
+                )
+            ]])
+        )
+        return
+    
+    data = await state.get_data()
+    course_id = data.get("course_id")
+    
+    # Get course before update for message
+    query = select(Course).filter(Course.id == course_id)
+    result = await session.execute(query)
+    course = result.scalar_one_or_none()
+    old_title = course.title if course else ""
+    new_title = message.text.strip()
+    
+    # Update the course title
+    updated_course = await update_course(
+        session,
+        course_id,
+        title=new_title
+    )
+    
+    if updated_course:
+        await message.answer(
+            get_text("admin.title_updated", i18n_language).format(
+                old_title=old_title,
+                new_title=new_title
+            ),
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.back", i18n_language),
+                    callback_data=f"edit_course_{course_id}"
+                )
+            ]])
+        )
+    else:
+        await message.answer(
+            get_text("admin.update_failed", i18n_language).format(title=old_title),
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.back", i18n_language),
+                    callback_data=f"edit_course_{course_id}"
+                )
+            ]])
+        )
+
+@router.callback_query(F.data.startswith("edit_description_"))
+async def edit_description(callback: types.CallbackQuery, state: FSMContext, i18n_language=None):
+    """Prompt for new course description"""
+    course_id = int(callback.data.split("_")[-1])
+    await state.update_data(course_id=course_id)
+    
+    await callback.message.edit_text(
+        get_text("admin.enter_new_description", i18n_language),
+        reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+            types.InlineKeyboardButton(
+                text=get_text("buttons.cancel", i18n_language),
+                callback_data=f"edit_course_{course_id}"
+            )
+        ]])
+    )
+    await state.set_state(CourseManagement.waiting_for_new_description)
+
+@router.message(CourseManagement.waiting_for_new_description)
+async def process_new_description(message: types.Message, state: FSMContext, session: AsyncSession, i18n_language=None):
+    """Process new course description"""
+    if not message.text or len(message.text.strip()) < 10:
+        data = await state.get_data()
+        course_id = data.get("course_id")
+        await message.answer(
+            get_text("admin.description_too_short", i18n_language),
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.try_again", i18n_language),
+                    callback_data=f"edit_description_{course_id}"
+                ),
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.back", i18n_language),
+                    callback_data=f"edit_course_{course_id}"
+                )
+            ]])
+        )
+        return
+    
+    data = await state.get_data()
+    course_id = data.get("course_id")
+    
+    # Get course before update for message
+    query = select(Course).filter(Course.id == course_id)
+    result = await session.execute(query)
+    course = result.scalar_one_or_none()
+    course_title = course.title if course else ""
+    
+    # Update the course description
+    updated_course = await update_course(
+        session,
+        course_id,
+        description=message.text.strip()
+    )
+    
+    if updated_course:
+        await message.answer(
+            get_text("admin.description_updated", i18n_language).format(title=course_title),
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.back", i18n_language),
+                    callback_data=f"edit_course_{course_id}"
+                )
+            ]])
+        )
+    else:
+        await message.answer(
+            get_text("admin.update_failed", i18n_language).format(title=course_title),
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.back", i18n_language),
+                    callback_data=f"edit_course_{course_id}"
+                )
+            ]])
+        )
+
+@router.callback_query(F.data.startswith("edit_banner_"))
+async def edit_banner(callback: types.CallbackQuery, state: FSMContext, i18n_language=None):
+    """Prompt for new course banner"""
+    course_id = int(callback.data.split("_")[-1])
+    await state.update_data(course_id=course_id)
+    
+    await callback.message.edit_text(
+        get_text("admin.send_new_banner", i18n_language),
+        reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+            types.InlineKeyboardButton(
+                text=get_text("buttons.cancel", i18n_language),
+                callback_data=f"edit_course_{course_id}"
+            )
+        ]])
+    )
+    await state.set_state(CourseManagement.waiting_for_new_banner)
+
+@router.message(CourseManagement.waiting_for_new_banner, F.photo)
+async def process_new_banner(message: types.Message, state: FSMContext, session: AsyncSession, i18n_language=None):
+    """Process new course banner"""
+    data = await state.get_data()
+    course_id = data.get("course_id")
+    
+    # Get course before update for message
+    query = select(Course).filter(Course.id == course_id)
+    result = await session.execute(query)
+    course = result.scalar_one_or_none()
+    course_title = course.title if course else ""
+    
+    # Update the course banner
+    updated_course = await update_course(
+        session,
+        course_id,
+        banner_file_id=message.photo[-1].file_id
+    )
+    
+    if updated_course:
+        await message.answer(
+            get_text("admin.banner_updated", i18n_language).format(title=course_title),
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.back", i18n_language),
+                    callback_data=f"edit_course_{course_id}"
+                )
+            ]])
+        )
+    else:
+        await message.answer(
+            get_text("admin.update_failed", i18n_language).format(title=course_title),
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.back", i18n_language),
+                    callback_data=f"edit_course_{course_id}"
+                )
+            ]])
+        )
+
+@router.message(CourseManagement.waiting_for_new_banner)
+async def process_invalid_banner(message: types.Message, state: FSMContext, i18n_language=None):
+    """Handle invalid input for banner"""
+    data = await state.get_data()
+    course_id = data.get("course_id")
+    
+    await message.answer(
+        get_text("admin.send_photo_please", i18n_language),
+        reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+            types.InlineKeyboardButton(
+                text=get_text("buttons.try_again", i18n_language),
+                callback_data=f"edit_banner_{course_id}"
+            ),
+            types.InlineKeyboardButton(
+                text=get_text("buttons.back", i18n_language),
+                callback_data=f"edit_course_{course_id}"
+            )
+        ]])
+    )
+
+@router.callback_query(F.data.startswith("edit_video_"))
+async def edit_video(callback: types.CallbackQuery, state: FSMContext, i18n_language=None):
+    """Prompt for new course video"""
+    course_id = int(callback.data.split("_")[-1])
+    await state.update_data(course_id=course_id)
+    
+    await callback.message.edit_text(
+        get_text("admin.send_new_video", i18n_language),
+        reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+            types.InlineKeyboardButton(
+                text=get_text("buttons.cancel", i18n_language),
+                callback_data=f"edit_course_{course_id}"
+            )
+        ]])
+    )
+    await state.set_state(CourseManagement.waiting_for_new_video)
+
+@router.message(CourseManagement.waiting_for_new_video, F.video)
+async def process_new_video(message: types.Message, state: FSMContext, session: AsyncSession, i18n_language=None):
+    """Process new course video"""
+    data = await state.get_data()
+    course_id = data.get("course_id")
+    
+    # Get course before update for message
+    query = select(Course).filter(Course.id == course_id)
+    result = await session.execute(query)
+    course = result.scalar_one_or_none()
+    course_title = course.title if course else ""
+    
+    # Update the course video
+    updated_course = await update_course(
+        session,
+        course_id,
+        video_file_id=message.video.file_id
+    )
+    
+    if updated_course:
+        await message.answer(
+            get_text("admin.video_updated", i18n_language).format(title=course_title),
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.back", i18n_language),
+                    callback_data=f"edit_course_{course_id}"
+                )
+            ]])
+        )
+    else:
+        await message.answer(
+            get_text("admin.update_failed", i18n_language).format(title=course_title),
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.back", i18n_language),
+                    callback_data=f"edit_course_{course_id}"
+                )
+            ]])
+        )
+
+@router.message(CourseManagement.waiting_for_new_video)
+async def process_invalid_video(message: types.Message, state: FSMContext, i18n_language=None):
+    """Handle invalid input for video"""
+    data = await state.get_data()
+    course_id = data.get("course_id")
+    
+    await message.answer(
+        get_text("admin.send_video_please", i18n_language),
+        reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+            types.InlineKeyboardButton(
+                text=get_text("buttons.try_again", i18n_language),
+                callback_data=f"edit_video_{course_id}"
+            ),
+            types.InlineKeyboardButton(
+                text=get_text("buttons.back", i18n_language),
+                callback_data=f"edit_course_{course_id}"
+            )
+        ]])
+    )
+
+@router.callback_query(F.data.startswith("edit_voice_"))
+async def edit_voice(callback: types.CallbackQuery, state: FSMContext, i18n_language=None):
+    """Prompt for new course voice"""
+    course_id = int(callback.data.split("_")[-1])
+    await state.update_data(course_id=course_id)
+    
+    await callback.message.edit_text(
+        get_text("admin.send_new_voice", i18n_language),
+        reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+            types.InlineKeyboardButton(
+                text=get_text("buttons.cancel", i18n_language),
+                callback_data=f"edit_course_{course_id}"
+            )
+        ]])
+    )
+    await state.set_state(CourseManagement.waiting_for_new_voice)
+
+@router.message(CourseManagement.waiting_for_new_voice, F.voice)
+async def process_new_voice(message: types.Message, state: FSMContext, session: AsyncSession, i18n_language=None):
+    """Process new course voice"""
+    data = await state.get_data()
+    course_id = data.get("course_id")
+    
+    # Get course before update for message
+    query = select(Course).filter(Course.id == course_id)
+    result = await session.execute(query)
+    course = result.scalar_one_or_none()
+    course_title = course.title if course else ""
+    
+    # Update the course voice
+    updated_course = await update_course(
+        session,
+        course_id,
+        voice_file_id=message.voice.file_id
+    )
+    
+    if updated_course:
+        await message.answer(
+            get_text("admin.voice_updated", i18n_language).format(title=course_title),
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.back", i18n_language),
+                    callback_data=f"edit_course_{course_id}"
+                )
+            ]])
+        )
+    else:
+        await message.answer(
+            get_text("admin.update_failed", i18n_language).format(title=course_title),
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.back", i18n_language),
+                    callback_data=f"edit_course_{course_id}"
+                )
+            ]])
+        )
+
+@router.message(CourseManagement.waiting_for_new_voice)
+async def process_invalid_voice(message: types.Message, state: FSMContext, i18n_language=None):
+    """Handle invalid input for voice"""
+    data = await state.get_data()
+    course_id = data.get("course_id")
+    
+    await message.answer(
+        get_text("admin.send_voice_please", i18n_language),
+        reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+            types.InlineKeyboardButton(
+                text=get_text("buttons.try_again", i18n_language),
+                callback_data=f"edit_voice_{course_id}"
+            ),
+            types.InlineKeyboardButton(
+                text=get_text("buttons.back", i18n_language),
+                callback_data=f"edit_course_{course_id}"
+            )
+        ]])
+    )
+
+@router.callback_query(F.data.startswith("edit_text_"))
+async def edit_text(callback: types.CallbackQuery, state: FSMContext, i18n_language=None):
+    """Prompt for new course text"""
+    course_id = int(callback.data.split("_")[-1])
+    await state.update_data(course_id=course_id)
+    
+    await callback.message.edit_text(
+        get_text("admin.enter_new_text", i18n_language),
+        reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+            types.InlineKeyboardButton(
+                text=get_text("buttons.cancel", i18n_language),
+                callback_data=f"edit_course_{course_id}"
+            )
+        ]])
+    )
+    await state.set_state(CourseManagement.waiting_for_new_text)
+
+@router.message(CourseManagement.waiting_for_new_text)
+async def process_new_text(message: types.Message, state: FSMContext, session: AsyncSession, i18n_language=None):
+    """Process new course text"""
+    if not message.text or len(message.text.strip()) < 10:
+        data = await state.get_data()
+        course_id = data.get("course_id")
+        await message.answer(
+            get_text("admin.text_too_short", i18n_language),
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.try_again", i18n_language),
+                    callback_data=f"edit_text_{course_id}"
+                ),
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.back", i18n_language),
+                    callback_data=f"edit_course_{course_id}"
+                )
+            ]])
+        )
+        return
+    
+    data = await state.get_data()
+    course_id = data.get("course_id")
+    
+    # Get course before update for message
+    query = select(Course).filter(Course.id == course_id)
+    result = await session.execute(query)
+    course = result.scalar_one_or_none()
+    course_title = course.title if course else ""
+    
+    # Update the course text
+    updated_course = await update_course(
+        session,
+        course_id,
+        text_explanation=message.text.strip()
+    )
+    
+    if updated_course:
+        await message.answer(
+            get_text("admin.text_updated", i18n_language).format(title=course_title),
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.back", i18n_language),
+                    callback_data=f"edit_course_{course_id}"
+                )
+            ]])
+        )
+    else:
+        await message.answer(
+            get_text("admin.update_failed", i18n_language).format(title=course_title),
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.back", i18n_language),
+                    callback_data=f"edit_course_{course_id}"
+                )
+            ]])
+        )
