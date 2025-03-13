@@ -26,7 +26,7 @@ async def courses_handler(message: Message, i18n_language: str):
         courses = result.scalars().all()
 
         if not courses:
-            await message.answer(get_text("courses.no_courses", i18n_language))
+            await message.answer(get_text("courses.no_courses", i18n_language), protect_content=True)
             return
 
         text = get_text("courses.list_title", i18n_language) + "\n\n"
@@ -39,12 +39,12 @@ async def courses_handler(message: Message, i18n_language: str):
                 "-------------------\n"
             )
 
-        await message.answer(text)
+        await message.answer(text, protect_content=True)
 
 @router.callback_query(lambda c: c.data == 'russian_language')
 async def russian_language_handler(callback_query: CallbackQuery):
     await callback_query.message.delete()
-    await callback_query.message.answer('here should be all available courses which will come from database')
+    await callback_query.message.answer('here should be all available courses which will come from database', protect_content=True)
     async with async_session() as session:
         # get avaiable courses and create dynamic buttons for each course
         ...

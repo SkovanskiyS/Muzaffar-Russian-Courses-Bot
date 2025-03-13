@@ -1,10 +1,9 @@
 from aiogram.filters import BaseFilter
 from aiogram.types import Message
+from database.crud.user import check_if_admin
 
 
 class AdminFilter(BaseFilter):
-    def __init__(self, admin_ids: list[int]):
-        self.admin_ids = admin_ids
-
-    async def __call__(self, message: Message) -> bool:
-        return message.from_user.id in self.admin_ids
+    async def __call__(self, message: Message, session) -> bool:
+        # Only check database for admin status
+        return await check_if_admin(session, message.from_user.id)

@@ -9,9 +9,49 @@
         "add": "📚 Kurs turini qo'shish",
         "name": "Kurs turi nomi",
         "created_success": "'{name}' kurs turi muvaffaqiyatli yaratildi!",
+        "updated_success": "'{name}' kurs turi muvaffaqiyatli yangilandi!",
         "select": "Kurs turini tanlang:",
         "no_types": "Mavjud kurs turlari yo'q. Iltimos, avval kurs turini yarating.",
-        "not_found": "Kurs turi topilmadi."
+        "not_found": "Kurs turi topilmadi.",
+        "edit": "✏️ Kurs turini tahrirlash",
+        "delete": "🗑 Kurs turini o'chirish",
+        "deleted": "'{title}' kurs turi muvaffaqiyatli o'chirildi.",
+        "confirm_delete": "Haqiqatan ham bu kurs turini o'chirishni xohlaysizmi? Bu amalni bekor qilib bo'lmaydi."
+    },
+
+    "student": {
+        "management": "👥 Talabalarni boshqarish",
+        "all_students": "Barcha talabalar ({count})",
+        "paid_students": "To'lov qilgan talabalar ({count})",
+        "unpaid_students": "To'lov qilmagan talabalar ({count})",
+        "student_info": "📊 Talaba haqida ma'lumot:",
+        "id": "ID: {id}",
+        "name": "Ism: {name}",
+        "username": "Foydalanuvchi nomi: @{username}",
+        "language": "Til: {language}",
+        "payment_status": "To'lov holati: {status}",
+        "payment_status_paid": "✅ To'langan",
+        "payment_status_unpaid": "❌ To'lanmagan",
+        "admin_status": "Admin holati: {status}",
+        "admin_status_yes": "✅ Ha",
+        "admin_status_no": "❌ Yo'q",
+        "blocked_status": "Bloklangan holati: {status}",
+        "blocked_status_yes": "✅ Bloklangan",
+        "blocked_status_no": "❌ Bloklanmagan",
+        "change_payment_status": "💳 To'lov holatini o'zgartirish",
+        "change_to_paid": "✅ To'langan deb belgilash",
+        "change_to_unpaid": "❌ To'lanmagan deb belgilash",
+        "payment_status_changed": "{name} talabasi uchun to'lov holati {status} ga o'zgartirildi",
+        "back_to_list": "🔙 Talabalar ro'yxatiga qaytish",
+        "no_students": "Mavjud talabalar yo'q.",
+        "select_student": "Talabani tanlang:",
+        "invalid_selection": "❌ Noto'g'ri tanlov",
+        "not_found": "❌ Talaba topilmadi",
+        "no_username": "Foydalanuvchi nomi yo'q",
+        "page_info": "Sahifa {current} / {total}",
+        "enter_id_prompt": "📝 Iltimos, talaba ID raqamini kiriting:",
+        "invalid_id": "❌ ID formati noto'g'ri. Iltimos, raqamli ID kiriting",
+        "enter_id": "🆔 Talabaning ID"
     },
 
     "course": {
@@ -84,6 +124,9 @@
     "admin": {
         "welcome": "👑 Salom, Admin! Sizni ko'rishdan xursandmiz! 🔥",
         "course_management": "📋 Kurslarni boshqarish",
+        "manage_courses": "📋 Kurslarni boshqarish",
+        "manage_course_types": "📚 Kurs turlarini boshqarish",
+        "select_management_option": "Nimani boshqarmoqchisiz:",
         "add_course": "➕ Kurs qo'shish",
         "edit_course": "✏️ Kursni tahrirlash",
         "delete_course": "🗑 Kursni o'chirish",
@@ -119,7 +162,23 @@
         "text_too_short": "Matnli tushuntirish juda qisqa. Iltimos, kamida 10 ta belgi kiriting.",
         "text_updated": "'{title}' kursi uchun matnli tushuntirish muvaffaqiyatli yangilandi",
         "back_to_menu": "Admin menyusiga qaytish",
-        "management_cancelled": "Kurslarni boshqarish bekor qilindi"
+        "management_cancelled": "Kurslarni boshqarish bekor qilindi",
+        "admin_management": "👑 Adminlarni boshqarish",
+        "admin_list": "📋 Adminlar ro'yxati ({count})",
+        "add_admin": "➕ Admin qo'shish",
+        "remove_admin": "🗑 Adminni olib tashlash",
+        "no_admins": "Mavjud adminlar yo'q. Siz yagona adminsiz.",
+        "enter_admin_id": "📝 Admin qilib tayinlamoqchi bo'lgan foydalanuvchi ID raqamini kiriting:",
+        "invalid_admin_id": "❌ ID formati noto'g'ri. Iltimos, raqamli foydalanuvchi ID raqamini kiriting.",
+        "admin_added": "✅ {id} ID raqamli foydalanuvchi muvaffaqiyatli admin etib tayinlandi!",
+        "admin_removed": "❌ {id} ID raqamli foydalanuvchi endi admin emas.",
+        "cant_remove_yourself": "⚠️ Siz o'zingizni adminlikdan olib tashlay olmaysiz.",
+        "user_not_found": "❌ {id} ID raqamli foydalanuvchi topilmadi.",
+        "already_admin": "⚠️ {id} ID raqamli foydalanuvchi allaqachon admin hisoblanadi.",
+        "not_admin": "⚠️ {id} ID raqamli foydalanuvchi admin emas.",
+        "select_admin_to_remove": "O'chirish uchun adminni tanlang:",
+        "admin_info": "👑 Admin haqida ma'lumot:",
+        "confirm_remove_admin": "Haqiqatan ham {name} adminni o'chirishni xohlaysizmi? Bu amalni qaytadan admin qo'shish orqali bekor qilish mumkin."
     },
 
     "user": {
@@ -160,6 +219,7 @@
     "errors": {
         "not_found": "🚫 Topilmadi!",
         "access_denied": "❌ Ruxsat yo'q!",
-        "invalid_input": "⚠️ Xatolik! Kiritilgan ma'lumotlarni tekshiring."
+        "invalid_input": "⚠️ Xatolik! Kiritilgan ma'lumotlarni tekshiring.",
+        "payment_required": "💰 Kurslarga kirish uchun to'lov qilishingiz kerak. To'lov bo'yicha ma'lumot olish uchun admin bilan bog'laning."
     }
 }

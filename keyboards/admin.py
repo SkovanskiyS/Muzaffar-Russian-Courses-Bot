@@ -8,16 +8,20 @@ def get_admin_main_keyboard(language: Optional[str] = None) -> ReplyKeyboardMark
     keyboard = [
         [
             KeyboardButton(text=get_text("course.add", language)),
-
         ],
         [
             KeyboardButton(text=get_text("admin.course_management", language)),
-            KeyboardButton(text=get_text("buttons.settings", language))
+            KeyboardButton(text=get_text("student.management", language))
         ],
         [
-            KeyboardButton(text=get_text("course_type.add", language))
+            KeyboardButton(text=get_text("course_type.add", language)),
         ],
-
+        [
+            KeyboardButton(text=get_text("admin.admin_management", language))
+        ],
+        [
+            KeyboardButton(text=get_text("buttons.settings", language))
+        ]
     ]
     return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
 

@@ -16,7 +16,8 @@ async def show_settings(message: Message, i18n_language: str):
     
     await message.answer(
         text=get_text("user.settings", i18n_language),
-        reply_markup=kb.as_markup()
+        reply_markup=kb.as_markup(),
+        protect_content=True
     )
 
 @router.callback_query(F.data == "change_language")
@@ -28,7 +29,8 @@ async def show_language_selection(callback: CallbackQuery, i18n_language: str):
     
     await callback.message.edit_text(
         text=get_text("user.language", i18n_language),
-        reply_markup=kb.as_markup()
+        reply_markup=kb.as_markup(),
+        protect_content=True
     )
 
 @router.callback_query(F.data.startswith("lang_"))
@@ -39,7 +41,8 @@ async def change_language(callback: CallbackQuery, session, i18n_language: str):
     # Send new main menu keyboard with updated language
     await callback.message.answer(
         text=get_text("settings.language_changed", new_language),
-        reply_markup=main_menu_keyboard(new_language)
+        reply_markup=main_menu_keyboard(new_language),
+        protect_content=True
     )
     
     # Update the settings message
@@ -47,5 +50,6 @@ async def change_language(callback: CallbackQuery, session, i18n_language: str):
         text=get_text("user.settings", new_language),
         reply_markup=InlineKeyboardBuilder()
         .button(text=get_text("user.language", new_language), callback_data="change_language")
-        .as_markup()
+        .as_markup(),
+        protect_content=True
     ) 

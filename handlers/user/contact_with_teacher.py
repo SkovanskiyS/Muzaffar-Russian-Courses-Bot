@@ -19,4 +19,4 @@ async def contact_handler(message: Message, i18n_language: str):
     else:
         text = get_text('contact.no_teacher', i18n_language)
     
-    await message.answer(text)
+    await message.answer(text, protect_content=True)

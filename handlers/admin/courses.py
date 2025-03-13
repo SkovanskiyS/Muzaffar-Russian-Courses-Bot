@@ -3,7 +3,7 @@ from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, update, delete
 from aiogram.types import ReplyKeyboardRemove
 from database.models.courses import Course
 import json
@@ -304,15 +304,49 @@ async def cancel_course_creation(callback: types.CallbackQuery, state: FSMContex
 
 @router.message(F.text.in_(get_all_translations_for_key("admin.course_management")))
 async def cmd_course_management(message: types.Message, state: FSMContext, session: AsyncSession, i18n_language=None):
-    """Handler for course management - show course types first"""
+    """Handler for course management - show main management options first"""
+    keyboard = [
+        [
+            types.InlineKeyboardButton(
+                text=get_text("admin.manage_courses", i18n_language),
+                callback_data="manage_courses"
+            )
+        ],
+        [
+            types.InlineKeyboardButton(
+                text=get_text("admin.manage_course_types", i18n_language),
+                callback_data="manage_course_types"
+            )
+        ],
+        [
+            types.InlineKeyboardButton(
+                text=get_text("buttons.back_to_menu", i18n_language),
+                callback_data="back_to_admin_menu"
+            )
+        ]
+    ]
+    
+    await message.answer(
+        get_text("admin.select_management_option", i18n_language),
+        reply_markup=types.InlineKeyboardMarkup(inline_keyboard=keyboard)
+    )
+
+@router.callback_query(F.data == "manage_courses")
+async def manage_courses(callback: types.CallbackQuery, state: FSMContext, session: AsyncSession, i18n_language=None):
+    """Show course types for course management"""
     query = select(CourseType).filter(CourseType.is_active == True)
     result = await session.execute(query)
     course_types = result.scalars().all()
     
     if not course_types:
-        await message.answer(
+        await callback.message.edit_text(
             get_text("course_type.no_types", i18n_language),
-            reply_markup=get_admin_main_keyboard(i18n_language)
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.back", i18n_language),
+                    callback_data="back_to_course_management"
+                )
+            ]])
         )
         return
     
@@ -328,16 +362,75 @@ async def cmd_course_management(message: types.Message, state: FSMContext, sessi
     
     keyboard.append([
         types.InlineKeyboardButton(
-            text=get_text("buttons.back_to_menu", i18n_language),
-            callback_data="back_to_admin_menu"
+            text=get_text("buttons.back", i18n_language),
+            callback_data="back_to_course_management"
         )
     ])
     
-    await message.answer(
+    await callback.message.edit_text(
         get_text("admin.select_course_type", i18n_language),
         reply_markup=types.InlineKeyboardMarkup(inline_keyboard=keyboard)
     )
-    await state.set_state(CourseManagement.waiting_for_type) 
+    await state.set_state(CourseManagement.waiting_for_type)
+
+@router.callback_query(F.data == "manage_course_types")
+async def manage_course_types(callback: types.CallbackQuery, session: AsyncSession, state: FSMContext, i18n_language=None):
+    """Handle the course types management"""
+    
+    # Get all course types
+    query = select(CourseType)
+    result = await session.execute(query)
+    course_types = result.scalars().all()
+    
+    if not course_types:
+        await callback.message.edit_text(
+            get_text("course_type.no_types", i18n_language),
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.back", i18n_language),
+                    callback_data="back_to_course_management"
+                )
+            ]])
+        )
+        return
+    
+    # Create keyboard with course types and actions
+    keyboard = []
+    for course_type in course_types:
+        keyboard.append([
+            types.InlineKeyboardButton(
+                text=f"📚 {course_type.name}",
+                callback_data=f"select_course_type_{course_type.id}"
+            )
+        ])
+        keyboard.append([
+            types.InlineKeyboardButton(
+                text=get_text("course_type.edit", i18n_language),
+                callback_data=f"rename_course_type_{course_type.id}"
+            ),
+            types.InlineKeyboardButton(
+                text=get_text("course_type.delete", i18n_language),
+                callback_data=f"delete_type_course_{course_type.id}" 
+            )
+        ])
+    
+    keyboard.append([
+        types.InlineKeyboardButton(
+            text=get_text("buttons.back", i18n_language),
+            callback_data="back_to_course_management"
+        )
+    ])
+    
+    await callback.message.edit_text(
+        get_text("course_type.select", i18n_language),
+        reply_markup=types.InlineKeyboardMarkup(inline_keyboard=keyboard)
+    )
+
+@router.callback_query(F.data == "back_to_course_management")
+async def back_to_course_management(callback: types.CallbackQuery, state: FSMContext, i18n_language=None):
+    """Return to course management main menu"""
+    await cmd_course_management(callback.message, state, None, i18n_language)
+    await callback.message.delete()
 
 @router.callback_query(F.data.startswith("manage_course_type_"))
 async def process_manage_course_type(callback: types.CallbackQuery, state: FSMContext, session: AsyncSession, i18n_language=None):
@@ -833,9 +926,13 @@ async def process_new_order(message: types.Message, state: FSMContext, session: 
 @router.callback_query(F.data == "back_to_admin_menu")
 async def back_to_admin_menu(callback: types.CallbackQuery, state: FSMContext, i18n_language=None):
     """Return to admin menu"""
+    # Get the correct language from callback if not explicitly provided
+    if not i18n_language:
+        i18n_language = callback.from_user.language_code
+        
     await state.clear()
     await callback.message.edit_text(
-        get_text("admin.back_to_menu", i18n_language),
+        get_text("admin.back_to_menu", i18n_language)
     )
     await callback.message.answer(
         get_text("admin.welcome", i18n_language),
@@ -846,22 +943,6 @@ async def back_to_admin_menu(callback: types.CallbackQuery, state: FSMContext, i
 async def back_to_course_types_management(callback: types.CallbackQuery, state: FSMContext, session: AsyncSession, i18n_language=None):
     """Return to course types selection for management"""
     await cmd_course_management(callback.message, state, session, i18n_language)
-
-@router.callback_query(F.data == "back_to_course_management")
-async def back_to_course_management(callback: types.CallbackQuery, state: FSMContext, session: AsyncSession, i18n_language=None):
-    """Return to course management"""
-    data = await state.get_data()
-    course_type_id = data.get("course_type_id")
-    selected_difficulty = data.get("selected_difficulty")
-    
-    if selected_difficulty:
-        # Go back to course list for selected type and difficulty
-        callback.data = f"manage_course_difficulty_{course_type_id}_{selected_difficulty}"
-        await process_manage_course_difficulty(callback, state, session, i18n_language)
-    else:
-        # Go back to course type selection
-        callback.data = f"manage_course_type_{course_type_id}"
-        await process_manage_course_type(callback, state, session, i18n_language)
 
 @router.callback_query(F.data == "cancel_course_management")
 async def cancel_course_management(callback: types.CallbackQuery, state: FSMContext, i18n_language=None):
@@ -1334,3 +1415,211 @@ async def process_new_text(message: types.Message, state: FSMContext, session: A
                 )
             ]])
         )
+
+# Handler for editing course type
+@router.message(F.text.in_(get_all_translations_for_key("course_type.edit")))
+async def edit_course_type_command(message: types.Message, session: AsyncSession, state: FSMContext, i18n_language=None):
+    """Handle the edit course type command"""
+    
+    # Get all course types
+    query = select(CourseType)
+    result = await session.execute(query)
+    course_types = result.scalars().all()
+    
+    if not course_types:
+        await message.answer(
+            get_text("course_type.no_types", i18n_language),
+            reply_markup=get_admin_main_keyboard(i18n_language)
+        )
+        return
+    
+    # Create keyboard with course types and actions
+    keyboard = []
+    for course_type in course_types:
+        keyboard.append([
+            types.InlineKeyboardButton(
+                text=f"📚 {course_type.name}",
+                callback_data=f"select_course_type_{course_type.id}"
+            )
+        ])
+        keyboard.append([
+            types.InlineKeyboardButton(
+                text=get_text("course_type.edit", i18n_language), # Use translation instead of hardcoded Russian text
+                callback_data=f"rename_course_type_{course_type.id}"
+            ),
+            types.InlineKeyboardButton(
+                text=get_text("course_type.delete", i18n_language), # Use translation instead of hardcoded Russian text
+                callback_data=f"delete_type_course_{course_type.id}" 
+            )
+        ])
+    
+    keyboard.append([
+        types.InlineKeyboardButton(
+            text=get_text("buttons.cancel", i18n_language),
+            callback_data="cancel_course_type_edit"
+        )
+    ])
+    
+    await message.answer(
+        get_text("course_type.select", i18n_language),
+        reply_markup=types.InlineKeyboardMarkup(inline_keyboard=keyboard)
+    )
+
+# Handler for renaming course type
+@router.callback_query(F.data.startswith("rename_course_type_"))
+async def rename_course_type(callback: types.CallbackQuery, state: FSMContext, i18n_language=None):
+    """Handle renaming of course type"""
+    course_type_id = int(callback.data.split("_")[-1])
+    
+    await state.set_state("waiting_for_course_type_name")
+    await state.update_data(course_type_id=course_type_id)
+    
+    await callback.message.edit_text(
+        get_text("course_type.name", i18n_language),
+        reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+            types.InlineKeyboardButton(
+                text=get_text("buttons.cancel", i18n_language),
+                callback_data="cancel_course_type_edit"
+            )
+        ]])
+    )
+    await callback.answer()
+
+# Handler for receiving new course type name
+@router.message(StateFilter("waiting_for_course_type_name"))
+async def process_new_course_type_name(message: types.Message, session: AsyncSession, state: FSMContext, i18n_language=None):
+    """Process the new name for course type"""
+    data = await state.get_data()
+    course_type_id = data.get("course_type_id")
+    
+    if len(message.text.strip()) < 3:
+        await message.answer(
+            get_text("admin.title_too_short", i18n_language),
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.try_again", i18n_language),
+                    callback_data=f"rename_course_type_{course_type_id}"
+                )
+            ]])
+        )
+        return
+    
+    # Update course type name
+    query = update(CourseType).where(CourseType.id == course_type_id).values(name=message.text.strip())
+    await session.execute(query)
+    await session.commit()
+    
+    await state.clear()
+    
+    await message.answer(
+        get_text("course_type.updated_success", i18n_language).format(name=message.text.strip()),
+        reply_markup=get_admin_main_keyboard(i18n_language)
+    )
+
+# Handler for deleting course type
+@router.callback_query(F.data.startswith("delete_type_course_"))
+async def delete_course_type(callback: types.CallbackQuery, session: AsyncSession, state: FSMContext, i18n_language=None):
+    """Ask for confirmation before deleting a course type"""
+    course_type_id = int(callback.data.split("_")[-1])
+    await state.update_data(course_type_id=course_type_id)
+    
+    # Get course type to show name
+    query = select(CourseType).filter(CourseType.id == course_type_id)
+    result = await session.execute(query)
+    course_type = result.scalar_one_or_none()
+    
+    if not course_type:
+        await callback.message.edit_text(
+            get_text("course_type.not_found", i18n_language),
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.back_to_menu", i18n_language),
+                    callback_data="back_to_admin_menu"
+                )
+            ]])
+        )
+        return
+        
+    # Create inline keyboard for confirmation
+    keyboard = [
+        [
+            types.InlineKeyboardButton(
+                text=get_text("buttons.confirm", i18n_language),
+                callback_data=f"confirm_delete_type_{course_type_id}"
+            ),
+            types.InlineKeyboardButton(
+                text=get_text("buttons.cancel", i18n_language),
+                callback_data="cancel_course_type_edit"
+            )
+        ]
+    ]
+    
+    # Make sure we're using InlineKeyboardMarkup for edit_text
+    inline_keyboard = types.InlineKeyboardMarkup(inline_keyboard=keyboard)
+    
+    # Use course_type-specific confirmation message
+    confirmation_message = get_text("course_type.confirm_delete", i18n_language)
+    
+    await callback.message.edit_text(
+        text=confirmation_message,
+        reply_markup=inline_keyboard
+    )
+    
+    await state.set_state("confirm_delete_type")
+    await callback.answer()
+
+@router.callback_query(StateFilter("confirm_delete_type"), F.data.startswith("confirm_delete_type_"))
+async def confirm_delete_course_type(callback: types.CallbackQuery, session: AsyncSession, state: FSMContext, i18n_language=None):
+    """Handle course type deletion after confirmation"""
+    course_type_id = int(callback.data.split("_")[-1])
+    
+    # Get course type name before deletion
+    query = select(CourseType).filter(CourseType.id == course_type_id)
+    result = await session.execute(query)
+    course_type = result.scalar_one_or_none()
+    
+    if course_type:
+        # Delete the course type
+        delete_query = delete(CourseType).where(CourseType.id == course_type_id)
+        await session.execute(delete_query)  
+        await session.commit()
+        
+        await callback.message.edit_text(
+            get_text("course_type.deleted", i18n_language).format(title=course_type.name),
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.back_to_menu", i18n_language),
+                    callback_data="back_to_admin_menu"
+                )
+            ]])
+        )
+    else:
+        await callback.message.edit_text(
+            get_text("course_type.not_found", i18n_language),
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[
+                types.InlineKeyboardButton(
+                    text=get_text("buttons.back_to_menu", i18n_language),
+                    callback_data="back_to_admin_menu"
+                )
+            ]])
+        )
+    
+    await state.clear()
+    await callback.answer()
+
+# Handler for canceling course type edit
+@router.callback_query(F.data == "cancel_course_type_edit")
+async def cancel_course_type_edit(callback: types.CallbackQuery, state: FSMContext, i18n_language=None):
+    """Handle cancellation of course type editing"""
+    
+    await state.clear()
+    
+    await callback.message.edit_text(
+        get_text("admin.management_cancelled", i18n_language)
+    )
+    
+    await callback.message.answer(
+        get_text("admin.back_to_menu", i18n_language),
+        reply_markup=get_admin_main_keyboard(i18n_language)
+    )
+    await callback.answer()
